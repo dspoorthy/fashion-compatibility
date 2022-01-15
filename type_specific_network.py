@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 from torch.autograd import Variable
 
+
 class ListModule(nn.Module):
     def __init__(self, *args):
         super(ListModule, self).__init__()
@@ -25,6 +26,7 @@ class ListModule(nn.Module):
     def __len__(self):
         return len(self._modules)
 
+
 class TypeSpecificNet(nn.Module):
     def __init__(self, args, embeddingnet, n_conditions):
         """ args: Input arguments from the main script
@@ -35,7 +37,7 @@ class TypeSpecificNet(nn.Module):
         super(TypeSpecificNet, self).__init__()
         # Boolean indicating whether masks are learned or fixed
         learnedmask = args.learned
-        
+
         # Boolean indicating whether masks are initialized in equally sized disjoint
         # sections or random otherwise
         prein = args.prein
@@ -66,34 +68,33 @@ class TypeSpecificNet(nn.Module):
             # create the mask
             if learnedmask:
                 if prein:
-                    # define masks 
+                    # define masks
                     self.masks = torch.nn.Embedding(n_conditions, args.dim_embed)
                     # initialize masks
                     mask_array = np.zeros([n_conditions, args.dim_embed])
                     mask_array.fill(0.1)
                     mask_len = int(args.dim_embed / n_conditions)
                     for i in range(n_conditions):
-                        mask_array[i, i*mask_len:(i+1)*mask_len] = 1
+                        mask_array[i, i * mask_len:(i + 1) * mask_len] = 1
                     # no gradients for the masks
                     self.masks.weight = torch.nn.Parameter(torch.Tensor(mask_array), requires_grad=True)
                 else:
                     # define masks with gradients
                     self.masks = torch.nn.Embedding(n_conditions, args.dim_embed)
                     # initialize weights
-                    self.masks.weight.data.normal_(0.9, 0.7) # 0.1, 0.005
+                    self.masks.weight.data.normal_(0.9, 0.7)  # 0.1, 0.005
             else:
-                # define masks 
+                # define masks
                 self.masks = torch.nn.Embedding(n_conditions, args.dim_embed)
                 # initialize masks
                 mask_array = np.zeros([n_conditions, args.dim_embed])
                 mask_len = int(args.dim_embed / n_conditions)
                 for i in range(n_conditions):
-                    mask_array[i, i*mask_len:(i+1)*mask_len] = 1
+                    mask_array[i, i * mask_len:(i + 1) * mask_len] = 1
                 # no gradients for the masks
                 self.masks.weight = torch.nn.Parameter(torch.Tensor(mask_array), requires_grad=False)
 
-
-    def forward(self, x, c = None):
+    def forward(self, x, c=None):
         """ x: input image data
             c: type specific embedding to compute for the images, returns all embeddings
                when None including the general embedding concatenated onto the end
@@ -116,17 +117,17 @@ class TypeSpecificNet(nn.Module):
 
             if self.l2_norm:
                 norm = torch.norm(masked_embedding, p=2, dim=2) + 1e-10
-                masked_embedding = masked_embedding / norm.expand_as(masked_embedding)
+                # masked_embedding = masked_embedding / norm.expand_as(masked_embedding)
 
             return torch.cat((masked_embedding, embedded_x), 1)
-            
+
         if self.fc_masks:
             mask_norm = 0.
             masked_embedding = []
             for embed, condition in zip(embedded_x, c):
-                 mask = self.masks[condition]
-                 masked_embedding.append(mask(embed.unsqueeze(0)))
-                 mask_norm += mask.weight.norm(1)
+                mask = self.masks[condition]
+                masked_embedding.append(mask(embed.unsqueeze(0)))
+                mask_norm += mask.weight.norm(1)
 
             masked_embedding = torch.cat(masked_embedding)
         else:
@@ -140,6 +141,6 @@ class TypeSpecificNet(nn.Module):
         embed_norm = embedded_x.norm(2)
         if self.l2_norm:
             norm = torch.norm(masked_embedding, p=2, dim=1) + 1e-10
-            masked_embedding = masked_embedding / norm.expand_as(masked_embedding)
+            # masked_embedding = masked_embedding / norm.expand_as(masked_embedding)
 
         return masked_embedding, mask_norm, embed_norm, embedded_x

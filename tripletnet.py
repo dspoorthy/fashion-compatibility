@@ -4,10 +4,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+
 def make_fc_1d(f_in, f_out):
     return nn.Sequential(nn.Linear(f_in, f_out),
-                         nn.BatchNorm1d(f_out,eps=0.001,momentum=0.01),
+                         nn.BatchNorm1d(f_out, eps=0.001, momentum=0.01),
                          nn.ReLU(inplace=True))
+
 
 def selective_margin_loss(pos_samples, neg_samples, margin, has_sample):
     """ pos_samples: Distance between positive pair
@@ -19,6 +21,7 @@ def selective_margin_loss(pos_samples, neg_samples, margin, has_sample):
     num_sample = max(torch.sum(has_sample), 1)
     return torch.sum(margin_diff * has_sample) / num_sample
 
+
 def accuracy(pos_samples, neg_samples):
     """ pos_samples: Distance between positive pair
         neg_samples: Distance between negative pair
@@ -26,27 +29,29 @@ def accuracy(pos_samples, neg_samples):
     is_cuda = pos_samples.is_cuda
     margin = 0
     pred = (pos_samples - neg_samples - margin).cpu().data
-    acc = (pred > 0).sum()*1.0/pos_samples.size()[0]
+    acc = (pred > 0).sum() * 1.0 / pos_samples.size()[0]
     acc = torch.from_numpy(np.array([acc], np.float32))
     if is_cuda:
         acc = acc.cuda()
-    
+
     return Variable(acc)
+
 
 class EmbedBranch(nn.Module):
     def __init__(self, feat_dim, embedding_dim):
         super(EmbedBranch, self).__init__()
         self.fc1 = make_fc_1d(feat_dim, embedding_dim)
         self.fc2 = nn.Linear(embedding_dim, embedding_dim)
-        
+
     def forward(self, x):
         x = self.fc1(x)
         x = self.fc2(x)
-        
+
         # L2 normalize each feature vector
         norm = torch.norm(x, p=2, dim=1) + 1e-10
         x = x / norm.expand_as(x)
         return x
+
 
 class Tripletnet(nn.Module):
     def __init__(self, args, embeddingnet, text_dim, criterion):
@@ -58,7 +63,7 @@ class Tripletnet(nn.Module):
             self.metric_branch = nn.Linear(args.dim_embed, 1, bias=False)
 
             # initilize as having an even weighting across all dimensions
-            weight = torch.zeros(1,args.dim_embed)/float(args.dim_embed)
+            weight = torch.zeros(1, args.dim_embed) / float(args.dim_embed)
             self.metric_branch.weight = nn.Parameter(weight)
 
         self.criterion = criterion
@@ -82,8 +87,8 @@ class Tripletnet(nn.Module):
             dist_a = F.pairwise_distance(embedded_x, embedded_y, 2)
             dist_b = F.pairwise_distance(embedded_x, embedded_z, 2)
         else:
-            dist_a = self.metric_branch(embedded_x*embedded_y)
-            dist_b = self.metric_branch(embedded_x*embedded_z)
+            dist_a = self.metric_branch(embedded_x * embedded_y)
+            dist_b = self.metric_branch(embedded_x * embedded_z)
 
         target = torch.FloatTensor(dist_a.size()).fill_(1)
         if dist_a.is_cuda:
@@ -143,7 +148,8 @@ class Tripletnet(nn.Module):
             y: Distant (negative) data
             z: Close (positive) data
         """
-        acc, loss_triplet, loss_sim_i, loss_mask, loss_embed, general_x, general_y, general_z = self.image_forward(x, y, z)
+        acc, loss_triplet, loss_sim_i, loss_mask, loss_embed, general_x, general_y, general_z = self.image_forward(x, y,
+                                                                                                                   z)
         loss_sim_t, desc_x, desc_y, desc_z = self.text_forward(x, y, z)
         loss_vse_x = self.calc_vse_loss(desc_x, general_x, general_y, general_z, x.has_text)
         loss_vse_y = self.calc_vse_loss(desc_y, general_y, general_x, general_z, y.has_text)

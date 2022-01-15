@@ -11,10 +11,12 @@ import h5py
 from sklearn.metrics import roc_auc_score
 from torch.autograd import Variable
 
+
 def default_image_loader(path):
     return Image.open(path).convert('RGB')
 
-def parse_iminfo(question, im2index, id2im, gt = None):
+
+def parse_iminfo(question, im2index, id2im, gt=None):
     """ Maps the questions from the FITB and compatibility tasks back to
         their index in the precomputed matrix of features
 
@@ -36,6 +38,7 @@ def parse_iminfo(question, im2index, id2im, gt = None):
 
     return questions, is_correct, gt
 
+
 def load_typespaces(rootdir, rand_typespaces, num_rand_embed):
     """ loads a mapping of pairs of types to the embedding used to
         compare them
@@ -46,7 +49,7 @@ def load_typespaces(rootdir, rand_typespaces, num_rand_embed):
                         rand_typespaces is true
     """
     typespace_fn = os.path.join(rootdir, 'typespaces.p')
-    typespaces = pickle.load(open(typespace_fn,'rb'))
+    typespaces = pickle.load(open(typespace_fn, 'rb'))
     if not rand_typespaces:
         ts = {}
         for index, t in enumerate(typespaces):
@@ -88,6 +91,7 @@ def load_compatibility_questions(fn, im2index, id2im):
 
     return compatibility_questions
 
+
 def load_fitb_questions(fn, im2index, id2im):
     """ Returns the list of fill in the blank questions for the
         split """
@@ -102,8 +106,9 @@ def load_fitb_questions(fn, im2index, id2im):
 
     return questions
 
+
 class TripletImageLoader(torch.utils.data.Dataset):
-    def __init__(self, args, split, meta_data, text_dim = None, transform=None, loader=default_image_loader):
+    def __init__(self, args, split, meta_data, text_dim=None, transform=None, loader=default_image_loader):
         rootdir = os.path.join(args.datadir, 'polyvore_outfits', args.polyvore_split)
         self.impath = os.path.join(args.datadir, 'polyvore_outfits', 'images')
         self.is_train = split == 'train'
@@ -154,21 +159,21 @@ class TripletImageLoader(torch.utils.data.Dataset):
                     line = line.strip()
                     if not line:
                         continue
-                    
+
                     vec = line.split(',')
                     label = ','.join(vec[:-self.text_feat_dim])
                     vec = np.array([float(x) for x in vec[-self.text_feat_dim:]], np.float32)
-                    assert(len(vec) == text_dim)
+                    assert (len(vec) == text_dim)
                     self.desc2vecs[label] = vec
-                    
+
             self.im2desc = {}
             for im in imnames:
                 desc = meta_data[im]['title']
                 if not desc:
                     desc = meta_data[im]['url_name']
-                    
-                desc = desc.replace('\n','').encode('ascii', 'ignore').strip().lower()
-                
+
+                desc = desc.replace('\n', '').encode('ascii', 'ignore').strip().lower()
+
                 # sometimes descriptions didn't map to any known words so they were
                 # removed, so only add those which have a valid feature representation
                 if desc and desc in self.desc2vecs:
@@ -184,8 +189,8 @@ class TripletImageLoader(torch.utils.data.Dataset):
                 cnt = len(items)
                 max_items = max(cnt, max_items)
                 outfit_id = outfit['set_id']
-                for j in range(cnt-1):
-                    for k in range(j+1, cnt):
+                for j in range(cnt - 1):
+                    for k in range(j + 1, cnt):
                         pos_pairs.append([outfit_id, items[j]['item_id'], items[k]['item_id']])
 
             self.pos_pairs = pos_pairs
@@ -222,7 +227,7 @@ class TripletImageLoader(torch.utils.data.Dataset):
         """ Returns a randomly sampled item from a different set
             than the outfit at data_index, but of the same type as
             item_type
-        
+
             data_index: index in self.data where the positive pair
                         of items was pulled from
             item_type: the coarse type of the item that the item
@@ -237,7 +242,7 @@ class TripletImageLoader(torch.utils.data.Dataset):
             item_index = np.random.choice(range(len(items)))
             item_out = items[item_index]
             attempts += 1
-                
+
         return item_out
 
     def get_typespace(self, anchor, pair):
@@ -267,10 +272,10 @@ class TripletImageLoader(torch.utils.data.Dataset):
             n_items = len(outfit)
             outfit_score = 0.0
             num_comparisons = 0.0
-            for i in range(n_items-1):
+            for i in range(n_items - 1):
                 item1, img1 = outfit[i]
                 type1 = self.im2type[img1]
-                for j in range(i+1, n_items):
+                for j in range(i + 1, n_items):
                     item2, img2 = outfit[j]
                     type2 = self.im2type[img2]
                     condition = self.get_typespace(type1, type2)
@@ -282,15 +287,15 @@ class TripletImageLoader(torch.utils.data.Dataset):
                         outfit_score += metric(Variable(embed1 * embed2)).data
 
                     num_comparisons += 1.
-                
+
             outfit_score /= num_comparisons
             scores.append(outfit_score)
-            
+
         scores = torch.cat(scores).squeeze().cpu().numpy()
-        #scores = np.load('feats.npy')
-        #print(scores)
-        #assert(False)
-        #np.save('feats.npy', scores)
+        # scores = np.load('feats.npy')
+        # print(scores)
+        # assert(False)
+        # np.save('feats.npy', scores)
         auc = roc_auc_score(labels, 1 - scores)
         return auc
 
@@ -321,10 +326,10 @@ class TripletImageLoader(torch.utils.data.Dataset):
                         score += metric(Variable(embed1 * embed2)).data
 
                 answer_score[index] = score.squeeze().cpu().numpy()
-                            
+
             correct += is_correct[np.argmin(answer_score)]
             n_questions += 1
-                        
+
         # scores are based on distances so need to convert them so higher is better
         acc = correct / n_questions
         return acc
@@ -334,7 +339,7 @@ class TripletImageLoader(torch.utils.data.Dataset):
             outfit_id, anchor_im, pos_im = self.pos_pairs[index]
             img1, desc1, has_text1, anchor_type = self.load_train_item(anchor_im)
             img2, desc2, has_text2, item_type = self.load_train_item(pos_im)
-            
+
             neg_im = self.sample_negative(outfit_id, pos_im, item_type)
             img3, desc3, has_text3, _ = self.load_train_item(neg_im)
             condition = self.get_typespace(anchor_type, item_type)
@@ -344,13 +349,12 @@ class TripletImageLoader(torch.utils.data.Dataset):
         img1 = self.loader(os.path.join(self.impath, '%s.jpg' % anchor))
         if self.transform is not None:
             img1 = self.transform(img1)
-            
-        return img1
 
+        return img1
 
     def shuffle(self):
         np.random.shuffle(self.pos_pairs)
-        
+
     def __len__(self):
         if self.is_train:
             return len(self.pos_pairs)
